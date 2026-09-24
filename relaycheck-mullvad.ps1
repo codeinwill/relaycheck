@@ -1,4 +1,4 @@
-﻿# relaycheck.ps1 - which Mullvad server should I use, and where is the problem?
+﻿# relaycheck-mullvad.ps1 - which Mullvad server should I use, and where is the problem?
 #
 # Works from any network: every run detects your location, ISP, home router and your ISP's first
 # router, and picks the nearest Mullvad location in another country as the "international" check.
@@ -16,19 +16,19 @@
 #   3. Recommends the city server that is clean now and has the best 24h track record, plus a
 #      backup from a different provider.
 #   4. Speed test (speedtest.net, same server each time): direct, then through the recommended server.
-#   5. Saves to relaycheck.db and rebuilds relaycheck.html.
+#   5. Saves to relaycheck-mullvad.db and rebuilds relaycheck-mullvad.html.
 #
 # The laptop's Mullvad app is disconnected while pinging (so pings take the real route), connected to
 # the recommended server only for the speed test, then put back the way it was.
 #
 # Usage:
-#   powershell -ExecutionPolicy Bypass -File relaycheck.ps1                          one run
-#   powershell -ExecutionPolicy Bypass -File relaycheck.ps1 -NoSpeed                 skip the speed test
-#   powershell -ExecutionPolicy Bypass -File relaycheck.ps1 -Loop 30                 run, wait 30 min, repeat
-#   powershell -ExecutionPolicy Bypass -File relaycheck.ps1 -Serve -Loop 30          dashboard on localhost:8765, run every 30 min
-#   powershell -ExecutionPolicy Bypass -File relaycheck.ps1 -City lax -RefCity sea   test another Mullvad city
+#   powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1                          one run
+#   powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1 -NoSpeed                 skip the speed test
+#   powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1 -Loop 30                 run, wait 30 min, repeat
+#   powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1 -Serve -Loop 30          dashboard on localhost:8765, run every 30 min
+#   powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1 -City lax -RefCity sea   test another Mullvad city
 #
-# relaycheck.db (SQLite; opens in DB Browser for SQLite):
+# relaycheck-mullvad.db (SQLite; opens in DB Browser for SQLite):
 #   runs     one row per run: where you were, diagnosis, recommended server, backup, speed
 #   checks   one row per target per run: grp, name, provider, ip, loss, ms, jitter
 
@@ -52,8 +52,8 @@ param(
 
 $ErrorActionPreference = "Continue"
 $Dir       = $PSScriptRoot
-$DbPath    = Join-Path $Dir "relaycheck.db"
-$Report    = Join-Path $Dir "relaycheck.html"
+$DbPath    = Join-Path $Dir "relaycheck-mullvad.db"
+$Report    = Join-Path $Dir "relaycheck-mullvad.html"
 $CleanPct  = 2
 $BadPct    = 4
 $GroupOk   = 0.25
@@ -80,14 +80,14 @@ function Test-Clean($t) { $t.Ms -ne $null -and $t.Loss -le $CleanPct }
 function Get-LostPings { [math]::Ceiling($BadPct * $Pings / 100) }
 
 # ---------------------------------------------------------------- sqlite (winsqlite3.dll ships with Windows 10+)
-if (-not ("Relaycheck.Sqlite" -as [type])) {
+if (-not ("RelaycheckMullvad.Sqlite" -as [type])) {
   Add-Type -TypeDefinition @'
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace Relaycheck {
+namespace RelaycheckMullvad {
   public class Sqlite : IDisposable {
     const string L = "winsqlite3.dll";
     [DllImport(L)] static extern int sqlite3_open_v2(byte[] file, out IntPtr db, int flags, IntPtr vfs);
@@ -244,7 +244,7 @@ $RunColumns = [ordered]@{
 }
 
 function Open-Db {
-  $db = New-Object Relaycheck.Sqlite $DbPath
+  $db = New-Object RelaycheckMullvad.Sqlite $DbPath
   $db.Exec("PRAGMA journal_mode=WAL", $null)
   $db.Exec("PRAGMA foreign_keys=ON", $null)
   $db.Exec("PRAGMA busy_timeout=5000", $null)
@@ -480,7 +480,7 @@ function Select-OoklaServer($cityName, $cityCode) {
   # 4 s probe: a server under 2 mbps on one connection is that server's problem, not the route's
   foreach ($s in $ordered | Select-Object -First 8) {
     $probe = "http://$($s.host)/download?nocache=probe&size=25000000"
-    $r = "$(curl.exe -s -L -o NUL -m 4 -A "Mozilla/5.0 relaycheck" -w "%{http_code} %{speed_download}" $probe)".Split(" ")
+    $r = "$(curl.exe -s -L -o NUL -m 4 -A "Mozilla/5.0 relaycheck-mullvad" -w "%{http_code} %{speed_download}" $probe)".Split(" ")
     if ($r[0] -eq "200" -and [double]$r[1] * 8 / 1e6 -ge 2) { return [pscustomobject]@{ Name = "$($s.sponsor) #$($s.id)"; Host = $s.host } }
   }
   $null
@@ -497,7 +497,7 @@ function Measure-Speed($hostName, $mode, [int]$seconds) {
         $nc = [guid]::NewGuid().ToString("N")
         if ($a.Mode -eq "down") {
           $req = [Net.HttpWebRequest]::Create("http://$($a.Host)/download?nocache=$nc&size=25000000")
-          $req.UserAgent = "Mozilla/5.0 relaycheck"
+          $req.UserAgent = "Mozilla/5.0 relaycheck-mullvad"
           $req.Timeout = 10000
           $req.ReadWriteTimeout = 10000
           $resp = $req.GetResponse()
@@ -511,7 +511,7 @@ function Measure-Speed($hostName, $mode, [int]$seconds) {
         } else {
           $len = 4MB
           $req = [Net.HttpWebRequest]::Create("http://$($a.Host)/upload?nocache=$nc")
-          $req.UserAgent = "Mozilla/5.0 relaycheck"
+          $req.UserAgent = "Mozilla/5.0 relaycheck-mullvad"
           $req.Method = "POST"
           $req.ContentType = "application/octet-stream"
           $req.ContentLength = $len
@@ -770,7 +770,7 @@ function Get-Pick($db, $cityRes, $cityName) {
 function Invoke-Run {
   $stamp = Get-Now
   $clock = [Diagnostics.Stopwatch]::StartNew()
-  Write-Log "relaycheck run"
+  Write-Log "relaycheck-mullvad run"
   $vpn0 = Get-VpnState
   $run = $null
   try {
@@ -1114,7 +1114,7 @@ $ReportJs = @'
     btn.disabled = true;
     stop.hidden = true;
     fl.hidden = true;
-    st.textContent = "relaycheck isn't running. start it with service.cmd.";
+    st.textContent = "relaycheck-mullvad isn't running. start it with service.cmd.";
   }
 
   function poll() {
@@ -1129,7 +1129,7 @@ $ReportJs = @'
   }
 
   function post(path, token) {
-    return fetch(path, { method: "POST", headers: { "X-Relaycheck": token } });
+    return fetch(path, { method: "POST", headers: { "X-Relaycheck-Mullvad": token } });
   }
 
   btn.addEventListener("click", function () {
@@ -1138,7 +1138,7 @@ $ReportJs = @'
   });
 
   stop.addEventListener("click", function () {
-    if (!confirm("stop relaycheck? automatic runs stop until you start service.cmd again.")) return;
+    if (!confirm("stop relaycheck-mullvad? automatic runs stop until you start service.cmd again.")) return;
     post("/stop", "stop").then(function () { clearInterval(timer); off(); });
   });
 
@@ -1186,7 +1186,7 @@ function Write-Report($run) {
   $headDef = Get-HeadlineDefinition $run
 
   $sb = New-Object Text.StringBuilder
-  [void]$sb.Append("<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Relaycheck</title><link rel=icon href='$Favicon'><style>$ReportCss</style></head><body><main>")
+  [void]$sb.Append("<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Relaycheck Mullvad</title><link rel=icon href='$Favicon'><style>$ReportCss</style></head><body><main>")
   [void]$sb.Append("<header><div class=mut>$when ($utc) &middot; from $(Format-Html $from)</div>")
   [void]$sb.Append("<div class=runbox><span class=mut id=runstate></span><button id=stop class=ghost hidden>Stop Service</button><button id=run disabled>Run Now</button></div></header>")
   if ($h.ViaMullvad) {
@@ -1262,8 +1262,8 @@ function Write-Report($run) {
 }
 
 # ---------------------------------------------------------------- local dashboard (-Serve)
-# Serves relaycheck.html on http://localhost:<port>; Run Now, Stop Service and Flush post to /run, /stop and /flush.
-# Loopback only. Posts need an X-Relaycheck header, which other websites can't send without a cors preflight this
+# Serves relaycheck-mullvad.html on http://localhost:<port>; Run Now, Stop Service and Flush post to /run, /stop and /flush.
+# Loopback only. Posts need an X-Relaycheck-Mullvad header, which other websites can't send without a cors preflight this
 # server never answers, and the Host header must be localhost, which blocks dns rebinding.
 function Start-Server([int]$port) {
   $url = "http://localhost:$port"
@@ -1271,7 +1271,7 @@ function Start-Server([int]$port) {
   try {
     $listener.Start()
   } catch {
-    Write-Log "relaycheck is already running $Dot opening $url"
+    Write-Log "relaycheck-mullvad is already running $Dot opening $url"
     Start-Process $url
     return
   }
@@ -1334,13 +1334,13 @@ function Start-Server([int]$port) {
           & $forbid $ns
           continue
         }
-        if ($posts.ContainsKey($path) -and ($method -ne "POST" -or $hdrs["x-relaycheck"] -ne $posts[$path])) {
+        if ($posts.ContainsKey($path) -and ($method -ne "POST" -or $hdrs["x-relaycheck-mullvad"] -ne $posts[$path])) {
           & $forbid $ns
           continue
         }
 
         switch -regex ($path) {
-          '^/(relaycheck\.html)?(\?.*)?$' {
+          '^/(relaycheck-mullvad\.html)?(\?.*)?$' {
             $body = if (Test-Path $Report) { [IO.File]::ReadAllBytes($Report) } else { [Text.Encoding]::UTF8.GetBytes("<p>no report yet. press run now in a moment.</p>") }
             & $send $ns "200 OK" "text/html; charset=utf-8" $body
             break
