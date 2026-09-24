@@ -28,8 +28,26 @@ By default it checks Mullvad's Seattle servers and uses Los Angeles as the West 
 ## Requirements
 
 - Windows 10 or 11, with Windows PowerShell 5.1 (built in)
-- The [Mullvad VPN app](https://mullvad.net/download) for the VPN speed test. Without it, Relaycheck Mullvad still runs the ping checks and the direct speed test.
-- Nothing to install: the database uses the SQLite library that ships with Windows (`winsqlite3.dll`).
+- Nothing else to install: the database uses the SQLite library that ships with Windows (`winsqlite3.dll`).
+- The [Mullvad VPN app](https://mullvad.net/download) is optional; see below.
+
+### With or without the Mullvad app
+
+Relaycheck Mullvad gets the server list from Mullvad's public API, not from the app. So most of it works without the app installed:
+
+| Works without the app | Needs the app |
+|---|---|
+| the ping ladder and diagnosis | the VPN speed test (connecting to the recommended server) |
+| the recommended server and backup, with 24h and 7d track records | turning the VPN off before pinging and putting it back afterwards |
+| the direct speed test | |
+| the dashboard, history and flush | |
+
+The app is found automatically, on your `PATH` or in `C:\Program Files\Mullvad VPN`. If it isn't installed, the two steps that need it are skipped and the VPN row of the speed test shows no result.
+
+**If you use a VPN some other way, turn it off before running.** Relaycheck Mullvad can only turn off the Mullvad app. With a plain WireGuard config, a router tunnel or another provider's VPN, the pings go through that tunnel and describe its route, not your real connection.
+
+- **Mullvad tunnels** (your router's, or a WireGuard config) are detected, because am.i.mullvad.net reports a Mullvad exit. The page shows a warning, and the run doesn't count towards the track record.
+- **Other VPN providers** aren't detected, so the results would be misleading.
 
 ## What each run does
 
