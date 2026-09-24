@@ -58,7 +58,7 @@ The app is found automatically, on your `PATH` or in `C:\Program Files\Mullvad V
    | home network | your router (the default gateway) |
    | your isp | your ISP's first router, 1.1.1.1 and 8.8.8.8 (both answer from near you) |
    | isp international | the 2 nearest Mullvad servers outside your country |
-   | us west coast | every Mullvad server in the reference city (Los Angeles) |
+   | us-west-coast | every Mullvad server in the reference city (Los Angeles) |
    | seattle | every Mullvad server in the city under test |
    | provider | the city's servers grouped by hosting company |
 
@@ -103,7 +103,7 @@ powershell -ExecutionPolicy Bypass -File relaycheck-mullvad.ps1 -City lax -RefCi
 |---|---|---|
 | `-City` | `sea` | Mullvad city code to test |
 | `-RefCity` | `lax` | Mullvad city code used as the regional reference |
-| `-RegionName` | `us west coast` | label for the reference level |
+| `-RegionName` | `us-west-coast` | label for the reference level |
 | `-Pings` | `50` | pings per target |
 | `-Loop` | `0` | minutes between runs (0 = run once) |
 | `-Serve` | off | start the dashboard on localhost |

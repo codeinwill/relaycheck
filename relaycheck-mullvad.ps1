@@ -40,7 +40,7 @@ param(
   [int]$Port = 8765,
   [string]$City = "sea",
   [string]$RefCity = "lax",
-  [string]$RegionName = "us west coast"
+  [string]$RegionName = "us-west-coast"
 )
 
 # ---------------------------------------------------------------- settings
