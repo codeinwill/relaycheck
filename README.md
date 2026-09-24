@@ -6,6 +6,17 @@ It runs on Windows, detects your network on every run (location, ISP, home route
 
 By default it checks Mullvad's Seattle servers and uses Los Angeles as the West Coast reference. Any Mullvad city can be tested.
 
+> [!WARNING]
+> **Each run turns your VPN off and changes your IP address for about a minute.**
+>
+> To measure the real route, Relaycheck Mullvad disconnects the laptop's Mullvad app while it pings, then connects to the recommended server for the speed test.
+>
+> - **Your real IP is exposed:** while it's disconnected (about a minute per run, every 30 minutes with `service.cmd`), your traffic isn't protected and websites see your real IP address.
+> - **Your VPN IP changes:** during the speed test your IP becomes the recommended server's. Afterwards the app goes back to the server setting it had before, which can give you a different exit IP than you had before the run.
+> - **Open connections may drop:** logged-in sessions, downloads, calls and anything that locks to your IP may disconnect or ask you to sign in again.
+>
+> Don't run it while you depend on the VPN staying connected: stop the service first. `-NoSpeed` skips the connection to the recommended server, but the VPN is still off while it pings.
+
 ## Quick start
 
 1. Double-click `service.cmd`.
