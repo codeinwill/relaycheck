@@ -1,0 +1,4 @@
+# Generated on every run, and they hold your public IP, ISP and location
+relaycheck.db
+relaycheck.db-*
+relaycheck.html
